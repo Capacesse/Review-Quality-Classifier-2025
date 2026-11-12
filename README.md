@@ -1,63 +1,102 @@
-# danny-and-his-butlers
+# Review Quality Classifier
 
-## Project Overview
+Multimodal pipeline that flags low-quality Google location reviews (advertisements, irrelevant content, rants from non-visitors) so that moderators only need to look at the ambiguous ones.
 
-An end-to-end ML pipeline designed to restore trust and integrity to online reviews. It directly addresses the core problem of low-quality, irrelevant, and fraudulent reviews which mislead consumers, unfairly harm businesses, and create a massive manual moderation burden for platforms.
+Built in 4 weeks by a team of five for **TikTok TechJam 2025**.
 
-## Our Pipeline
-Our solution is a multi-stage pipeline that uses a combination of rule-based logic and machine learning to achieve high accuracy.
+<!-- TODO: add one screenshot or diagram of the pipeline here. A single image raises the perceived quality of the repo more than any paragraph. -->
 
-1.  **Image Analysis & Preprocessing:** The pipeline begins by analysing the review's photo using a BLIP model to generate a text caption. This caption is merged with the original, cleaned review text to create a single, unified text field for analysis.
+## The problem
 
-2.  **Advanced Feature Engineering:** We convert the unified text into a rich numerical representation using two parallel techniques:
-    * **TF-IDF Vectors:** To capture the importance of specific keywords.
-    * **Sentence Embeddings:** To capture the overall contextual meaning and sentiment.
+Review platforms have no labelled data for "bad" reviews, and manual moderation does not scale. We needed a classifier that could:
 
-3.  **Two-Stage Pseudo-Labelling:** To overcome the lack of training data, we employ a two-stage labelling strategy:
-    * **Stage 1 (Rule-Based):** High-confidence rules are applied to the dataset to accurately label the most obvious cases (e.g., clear advertisements, valid reviews).
-    * **Stage 2 (Baseline Model):** A baseline `LogisticRegression` model is trained on these high-confidence labels. This model then predicts labels for the remaining, more ambiguous reviews in the dataset.
+- sort reviews into four classes: `Advertisement`, `Irrelevant`, `Rant Without Visit`, `Valid Review`
+- use both the review text and the attached photo
+- be trained without a labelled dataset
 
-4.  **Final Model Training:** A powerful **Stacking Ensemble Model** is trained on the fully labeled dataset. This final model combines the strengths of three specialised base models and a final meta-model to make the definitive classification.
+## Approach
 
-## Tech Stack & Rationale
--   **Hugging Face Transformers & PyTorch:** The backbone of our project, providing access to state-of-the-art models for image captioning (BLIP) and text understanding.
--   **Scikit-learn & LightGBM:** Used to build our powerful stacking ensemble model, combining the reliability of logistic regression with the high performance of LightGBM.
--   **Sentence-Transformers:** Employed to generate high-quality semantic embeddings, allowing our model to understand the nuanced meaning of reviews.
--   **Pandas:** The primary tool for all data manipulation and management throughout the pipeline.
--   **Joblib:** Used for saving and loading our final trained model pipeline.
+| Stage | What it does | Tools |
+|---|---|---|
+| 1. Image captioning | Turns each review photo into a text caption and merges it with the cleaned review text | BLIP (Hugging Face Transformers) |
+| 2. Feature engineering | Represents each review as keyword features plus a semantic embedding | TF-IDF, Sentence-Transformers |
+| 3. Pseudo-labelling, rule stage | Labels the obvious cases with high-confidence rules | Pandas |
+| 4. Pseudo-labelling, model stage | Trains a baseline on the rule-labelled rows, then labels the remaining ambiguous rows | scikit-learn `LogisticRegression` |
+| 5. Final classifier | Stacking ensemble trained on the fully labelled set | scikit-learn, LightGBM |
 
-## Setup Instructions
+**Why two-stage pseudo-labelling:** rules alone are precise but cover few reviews; a model alone has nothing to learn from. Using rules to seed a baseline model gave us labels for the whole dataset without manual annotation.
+
+## Results
+
+| Metric | Value |
+|---|---|
+| Overall accuracy | 88% |
+| Test set size | <!-- TODO: number of hand-labelled reviews --> |
+| Per-class precision / recall | <!-- TODO: paste the classification report from the notebook --> |
+
+<!-- TODO: add the confusion matrix image exported from the notebook. -->
+
+### How to read the 88%
+
+The test set was labelled by hand by the team, and we deliberately picked reviews that were clearly valid or clearly violating. This means:
+
+- the score reflects performance on **clear-cut cases**, and is likely higher than it would be on a random sample of reviews
+- labels were assigned by team judgement, without a written rubric or a second annotator
+
+## Limitations and what we would do next
+
+- **Evaluate on a random sample** with a written labelling rubric and two annotators, and report agreement between them.
+- **Report per-class metrics** rather than accuracy alone, since valid reviews heavily outnumber violations.
+- **Measure label noise** from the pseudo-labelling stages by spot-checking a sample of the generated labels.
+- **Add unit tests for the rule stage**, since every downstream label depends on those rules being correct.
+- **Package the pipeline as a script** so it runs outside Google Colab.
+
+## Repository structure
+
+```
+notebooks/Main_Pipeline.ipynb   Full training and evaluation pipeline
+data/                           Input data (not included, see below)
+requirements.txt                Python dependencies
+```
+
+<!-- TODO: check this matches the actual repo layout. -->
+
+## Running it
+
+The notebook was written for Google Colab with data stored in Google Drive.
+
 1. Clone the repository:
    ```bash
-   git clone [https://github.com/Capacesse/danny-and-his-butlers.git](https://github.com/Capacesse/danny-and-his-butlers.git)
+   git clone https://github.com/Capacesse/review-quality-classifier.git
+   cd review-quality-classifier
    ```
-2. Create a virtual environment and activate it:
+2. Install dependencies:
    ```bash
    python -m venv venv
-   venv\Scripts\activate
-   ```
-3. Install the required dependencies:
-   ```bash
+   source venv/bin/activate      # Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
-4. Set up your Hugging Face token in your Google Colab Secrets manager under the name `TikTokTechJam2025`.
+3. Add a Hugging Face token to Colab Secrets under the name `TikTokTechJam2025`.
+4. Place `merged_reviews_4.csv` and the `dataset/` image folder in `data/`:
+   ```
+   data/
+   ├── merged_reviews_4.csv
+   └── dataset/
+       ├── indoor_atmosphere/
+       ├── menu/
+       ├── outdoor_atmosphere/
+       └── taste/
+   ```
+5. Open `notebooks/Main_Pipeline.ipynb` in Colab and run all cells.
 
-## How to Reproduce Results
-1. Open the `/notebooks/Main_Pipeline.ipynb` notebook in Google Colab.
-2. Ensure the required dataset (`merged_reviews_4.csv` and the `dataset` folder) is in the `/data` folder within your project's Google Drive directory.  
-   - `dataset` folder should have the following structure:  
-`dataset`  
-|- `indoor_atmosphere`  
-|- `menu`  
-|- `outdoor_atmosphere`  
-|- `taste`  
-   
-3. Run all cells from top to bottom to execute the full training and evaluation pipeline.
-4. For your own testing, you must have your own dataset in the `\data` folder as well
+The dataset is not included in this repository. <!-- TODO: say where it came from, or link the source. -->
 
-## Team Contributions
-- **Project Lead & Pipelining:** Julius Ng Hwee Chong
-- **Data Preprocessing:** Phoa Li Lynn Sheryl
-- **Feature Engineer:** Park Soohwan
-- **Model Developer & Pseudo-Labelling:** Danny Lee Han Keat
-- **Policy & Evaluation:** Mahesh Sanjana
+## Team
+
+| Member | Role |
+|---|---|
+| Julius Ng Hwee Chong | Project lead: scoped the problem, designed the pipeline architecture, coordinated integration |
+| Phoa Li Lynn Sheryl | Data preprocessing |
+| Park Soohwan | Feature engineering |
+| Danny Lee Han Keat | Model development and pseudo-labelling |
+| Mahesh Sanjana | Policy and evaluation |
