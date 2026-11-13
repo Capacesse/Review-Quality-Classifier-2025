@@ -89,8 +89,8 @@ The notebook was written for Google Colab with data stored in Google Drive.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Capacesse/review-quality-classifier.git
-   cd review-quality-classifier
+   git clone https://github.com/Capacesse/Review-Quality-Classifier-2025.git
+   cd Review-Quality-Classifier-2025
    ```
 2. Install dependencies:
    ```bash
